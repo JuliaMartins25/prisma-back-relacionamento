@@ -1,5 +1,6 @@
-import UserModel from "../models/userModel";
-import bcrypt from "bcrypt.js";
+import UserModel from "../models/userModel.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 class AuthController {
     // Listar todos os usuários
@@ -27,7 +28,7 @@ class AuthController {
             const userExists = await UserModel.findByEmail(email);
             if (userExists) {
                 return res.status(400).json({ error: "Este email já está cadastrado" });
-            
+
             }
 
             // Hasha da senha
@@ -49,9 +50,54 @@ class AuthController {
         } catch (error) {
             console.error("Erro ao registrar usuário:", error);
             res.status(500).json({ error: "Erro ao registrar usuário" });
-            
+
         }
     }
+
+    async login(req, res) {
+        try {
+            const { email, password } = req.body;
+
+            if (!email || !password) {
+                return res.status(400).json({ error: "Os campos email e senha são obrigatórios" });
+            }
+
+            // Verifica se o usuário já existe
+            const userExist = await UserModel.findByEmail(email);
+            if (!userExist) {
+                return res.status(401).json({ error: "Credenciais inválidas" });
+            }
+            // Verificar senha
+            const isPasswordValid = await bcrypt.compare(password, userExist.password);
+            if (!isPasswordValid) {
+                return res.status(401).json({ error: "Credenciais inválidas" });
+            }
+
+            // Gerar Token JWT
+            const token = jwt.sign(
+                { id: userExist.id, 
+                name: userExist.name,
+                email: userExist.email 
+            },
+                process.env.JWT_SECRET,
+                { 
+                    expiresIn: "24h" 
+                } // O token expira em 1 hora
+            );
+
+            return  res.json({
+                message: "Login realizado com sucesso",
+                token,
+                userExist,
+            });
+        } catch (error) {
+            console.error("Erro ao fazer login:", error);
+            res.status(500).json({ error: "Erro ao fazer login" });
+        }
+    }
+
+
+
 }
 
 export default new AuthController();
